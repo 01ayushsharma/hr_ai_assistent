@@ -7,7 +7,13 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.log
-corpus/
-manifest.json
-veltrix.db
-TASK.pdf
+
+# Assessment data: supplied at run time in ./data (tests use tests/fixtures/data)
+/data/
+/corpus/
+/manifest.json
+/veltrix.db
+/TASK.pdf
+
+# Downloaded models
+.cache/
