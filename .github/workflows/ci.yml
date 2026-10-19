@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+      - run: pip install -r requirements.txt
+      - run: make test
+
+  docker:
+    # Mirrors the graders' must-pass check: `docker compose up` with ./data,
+    # /health must return 200 within 10 minutes.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Provide ./data
+        run: cp -r tests/fixtures/data ./data
+      - name: Start the service
+        run: docker compose up -d --build
+      - name: Wait for /health (max 10 minutes)
+        run: |
+          for i in $(seq 1 120); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/health)" = "200" ]; then
+              echo "healthy after ~$((i * 5)) s"; exit 0
+            fi
+            sleep 5
+          done
+          docker compose logs --tail 100
+          exit 1
+      - name: Check the API contract and UI without an LLM key
+        run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8000/chat -H 'Content-Type: application/json' -d '{"session_id":"a","message":"hi"}')" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8000/chat -H 'X-Employee-Id: E2004' -H 'Content-Type: application/json' -d '{}')" = "400"
+          curl -sf localhost:8000/ | grep -q "Veltrix PeopleOps"
+          curl -sf -H 'X-Employee-Id: E3004' -H 'Content-Type: application/json' \
+            -d '{"leave_type":"annual","start_date":"2026-11-23","end_date":"2026-11-27"}' \
+            localhost:8000/api/leave/preview | grep -q '"ok"'
+      - name: Logs
+        if: always()
+        run: docker compose logs --tail 50

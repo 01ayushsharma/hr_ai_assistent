@@ -1,0 +1,16 @@
+# Keep the build context small; data is mounted at runtime, models are downloaded in the image.
+.git
+.venv
+venv
+.cache
+data
+corpus
+manifest.json
+veltrix.db
+TASK.pdf
+.env
+.env.*
+**/__pycache__
+**/*.pyc
+.pytest_cache
+*.log
