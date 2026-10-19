@@ -1,0 +1,5 @@
+# Keep LF in the repository so Linux CI and Docker see the same files on every OS.
+* text=auto eol=lf
+*.pdf binary
+*.docx binary
+*.db binary
