@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Veltrix PeopleOps</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M9 10l7 13 7-13' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <!-- Starting-up banner (shown while documents are being indexed) -->
+  <div class="banner" id="startup-banner" hidden>
+    <span class="spinner" aria-hidden="true"></span>
+    The assistant is starting up and indexing HR documents. This usually takes under a minute.
+  </div>
+
+  <!-- Sign in -->
+  <main class="signin" id="signin" hidden>
+    <div class="signin-card">
+      <div class="logo" aria-hidden="true">V</div>
+      <h1>Veltrix PeopleOps</h1>
+      <p class="muted">Ask HR questions, apply for leave and track your requests.</p>
+      <form id="signin-form" novalidate>
+        <label for="employee-id">Employee ID</label>
+        <input id="employee-id" name="employee-id" autocomplete="username" placeholder="e.g. E2004"
+               required pattern="[A-Za-z0-9-]+" spellcheck="false">
+        <p class="field-error" id="signin-error" role="alert"></p>
+        <button class="btn btn-primary btn-block" type="submit">Continue</button>
+      </form>
+      <p class="fineprint">Demo environment: sign-in uses your employee ID only.</p>
+    </div>
+  </main>
+
+  <!-- Application -->
+  <div class="app" id="app" hidden>
+    <header class="topbar">
+      <div class="brand"><span class="logo logo-sm" aria-hidden="true">V</span> Veltrix PeopleOps</div>
+      <div class="user">
+        <div class="user-text">
+          <span class="user-name" id="user-name"></span>
+          <span class="user-meta" id="user-meta"></span>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="signout">Sign out</button>
+      </div>
+    </header>
+
+    <div class="shell">
+      <nav class="nav" aria-label="Main">
+        <button class="nav-item" data-view="chat"><span class="nav-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg></span>Ask HR</button>
+        <button class="nav-item" data-view="apply"><span class="nav-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span>Apply for leave</button>
+        <button class="nav-item" data-view="leave"><span class="nav-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg></span>My leave</button>
+        <button class="nav-item" data-view="team" id="nav-team" hidden><span class="nav-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M15 15c3 0 6 1.5 6 4"/></svg></span>Team</button>
+      </nav>
+
+      <main class="content">
+        <!-- Ask HR -->
+        <section class="view view-chat" id="view-chat" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Ask HR</h1>
+              <p class="muted">Answers come from Veltrix HR documents that apply to you, with sources.</p>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="new-chat">New conversation</button>
+          </div>
+          <div class="messages" id="messages" aria-live="polite"></div>
+          <div class="suggestions" id="suggestions"></div>
+          <form class="composer" id="composer">
+            <label class="sr-only" for="chat-input">Message</label>
+            <textarea id="chat-input" rows="1" placeholder="Ask about leave, holidays or HR policies…"
+                      maxlength="4000"></textarea>
+            <button class="btn btn-primary" type="submit" id="send">Send</button>
+          </form>
+        </section>
+
+        <!-- Apply for leave -->
+        <section class="view" id="view-apply" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Apply for leave</h1>
+              <p class="muted">Weekends and public holidays for your office are not deducted from your balance.</p>
+            </div>
+          </div>
+          <div class="apply-grid">
+            <form class="card" id="apply-form" novalidate>
+              <fieldset class="field">
+                <legend>Leave type</legend>
+                <div class="type-options" id="type-options">
+                  <label class="type-card">
+                    <input type="radio" name="leave_type" value="annual">
+                    <span class="type-body">
+                      <span class="type-title">Annual leave</span>
+                      <span class="type-balance" data-balance="annual">–</span>
+                    </span>
+                  </label>
+                  <label class="type-card">
+                    <input type="radio" name="leave_type" value="sick">
+                    <span class="type-body">
+                      <span class="type-title">Sick leave</span>
+                      <span class="type-balance" data-balance="sick">–</span>
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
+              <div class="field-row">
+                <div class="field">
+                  <label for="start-date">First day</label>
+                  <input type="date" id="start-date" name="start_date" required>
+                </div>
+                <div class="field">
+                  <label for="end-date">Last day</label>
+                  <input type="date" id="end-date" name="end_date" required>
+                </div>
+              </div>
+              <p class="hint">Leave is taken in whole days. Both dates are included.</p>
+
+              <div class="holidays">
+                <h2>Upcoming public holidays <span class="muted" id="holiday-office"></span></h2>
+                <ul class="holiday-list" id="holiday-list"></ul>
+              </div>
+            </form>
+
+            <aside class="card summary" id="apply-summary" aria-live="polite"></aside>
+          </div>
+        </section>
+
+        <!-- My leave -->
+        <section class="view" id="view-leave" hidden>
+          <div class="page-head">
+            <div>
+              <h1>My leave</h1>
+              <p class="muted">Balances already include your pending and approved requests.</p>
+            </div>
+            <button class="btn btn-primary btn-sm" data-goto="apply">Apply for leave</button>
+          </div>
+          <div class="balance-grid" id="balance-grid"></div>
+          <div class="card table-card">
+            <h2>Requests</h2>
+            <div id="requests"></div>
+          </div>
+        </section>
+
+        <!-- Team (managers) -->
+        <section class="view" id="view-team" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Team leave</h1>
+              <p class="muted">Pending and approved leave of your direct reports.</p>
+            </div>
+          </div>
+          <form class="card team-filter" id="team-form">
+            <div class="field"><label for="team-start">From</label><input type="date" id="team-start" required></div>
+            <div class="field"><label for="team-end">To</label><input type="date" id="team-end" required></div>
+            <button class="btn btn-primary" type="submit">Show</button>
+          </form>
+          <div class="card table-card"><div id="team-results"></div></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialog" id="confirm-dialog">
+    <form method="dialog">
+      <h2 id="dialog-title"></h2>
+      <div id="dialog-body"></div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" value="cancel">Keep it</button>
+        <button class="btn btn-danger" value="confirm" id="dialog-confirm">Cancel request</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
