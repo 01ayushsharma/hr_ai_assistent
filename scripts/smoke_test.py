@@ -46,14 +46,38 @@ def post(base: str, employee_id: str, session_id: str, message: str) -> tuple[di
         return json.loads(resp.read()), time.monotonic() - t0
 
 
+UNAVAILABLE = "trouble reaching the language model"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://localhost:8000")
+    parser.add_argument("--pause", type=float, default=0.0,
+                        help="seconds to wait between messages (for rate-limited free tiers)")
+    parser.add_argument("--retries", type=int, default=0,
+                        help="re-send a message this many times if the LLM was unavailable (rate limit)")
+    parser.add_argument("--out", help="also write every exchange as JSON lines to this file")
+    parser.add_argument("--only", help="comma-separated scenario numbers to run (1-based), e.g. 5,11")
     args = parser.parse_args()
-    for employee_id, messages in SCENARIOS:
+    out = open(args.out, "w", encoding="utf-8") if args.out else None
+    chosen = {int(n) for n in args.only.split(",")} if args.only else None
+    first = True
+    for number, (employee_id, messages) in enumerate(SCENARIOS, start=1):
+        if chosen and number not in chosen:
+            continue
         session_id = str(uuid.uuid4())
         for message in messages:
-            body, seconds = post(args.base_url, employee_id, session_id, message)
+            for attempt in range(args.retries + 1):
+                if not first:
+                    time.sleep(args.pause)
+                first = False
+                body, seconds = post(args.base_url, employee_id, session_id, message)
+                if UNAVAILABLE not in body["answer"]:
+                    break
+            if out:
+                out.write(json.dumps({"employee_id": employee_id, "message": message, "seconds": round(seconds, 1),
+                                      **body}) + "\n")
+                out.flush()
             print(f"\n[{employee_id}] {message}")
             print(f"  route={body['route']}  pending={body['pending_confirmation']}  {seconds:.1f}s")
             for c in body["citations"]:
