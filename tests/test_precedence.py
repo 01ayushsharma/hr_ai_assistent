@@ -86,6 +86,40 @@ class TestOnCorpus:
         assert result.hits
         assert all(h.doc.effective_date <= ref and not h.upcoming for h in result.hits)
 
+    def test_near_duplicate_keeps_the_newer_version(self, kb):
+        """Found in a live run: v1 and v2 sections are near-identical, and de-duplication kept
+        whichever ranked first, so a superseded deadline (30 June) reached the model without
+        the current one (31 March)."""
+        retriever = Retriever(kb)
+        for query in ("Tell me about leave", "carry forward unused annual leave deadline",
+                      "annual leave rules and recording leave"):
+            result = retriever.search(query, role="employee", region="IN", reference_date=TODAY, today=TODAY,
+                                      token_budget=3000)
+            if "used by 30 June" in result.text:
+                assert "used by 31 March" in result.text, query
+            v1_sections = {h.chunk.locator.split(". ", 1)[-1] for h in result.hits
+                           if h.doc.doc_id == "POL-LEAVE-GLOBAL-V1"}
+            v2_sections = {h.chunk.locator.split(". ", 1)[-1] for h in result.hits
+                           if h.doc.doc_id == "POL-LEAVE-GLOBAL-V2"}
+            assert not v1_sections & {"Carrying annual leave forward"} - v2_sections, query
+
+    def test_overriding_regional_section_is_pulled_in(self, kb):
+        """Found in a live run: a broad question retrieved the global carry-forward section but
+        not the India addendum's section that overrides it, so the model gave the global limit."""
+        result = Retriever(kb).search("Tell me about leave", role="employee", region="IN", reference_date=TODAY,
+                                      today=TODAY, token_budget=3000)
+        sections = {(h.doc.doc_id, h.chunk.heading) for h in result.hits}
+        if any(doc == "POL-LEAVE-GLOBAL-V2" and "Carrying annual leave forward" in (heading or "")
+               for doc, heading in sections):
+            assert ("ADD-LEAVE-IN", "1. Carrying annual leave forward") in sections
+
+    def test_section_key(self):
+        from app.retrieval.search import section_key
+
+        assert section_key("6. Carrying annual leave forward") == section_key("1. Carrying annual leave forward")
+        assert section_key("1. Annual leave (Urlaub)") == section_key("5. Annual leave")
+        assert section_key("1. Public holidays 2026") != section_key("1. Public holidays 2025")
+
     def test_upcoming_v3_is_labelled(self, kb):
         result = Retriever(kb).search("annual leave carry forward limit", role="employee", region="IN",
                                       reference_date=TODAY, today=TODAY, token_budget=3000)
