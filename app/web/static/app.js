@@ -249,11 +249,16 @@ function disableOldConfirmations() {
   }
 }
 
+/* Render **bold** spans from model answers as <strong>, building text nodes only (no innerHTML). */
+function withBold(text) {
+  return String(text).split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? h("strong", { text: part }) : part));
+}
+
 function appendBot(body) {
   const bubble = h("div", { class: "bubble" });
   const label = body.pending_confirmation ? "Needs your confirmation" : (ROUTE_LABELS[body.route] || body.route);
   bubble.append(h("span", { class: `route route-${body.pending_confirmation ? "clarify" : body.route}`, text: label }));
-  bubble.append(h("div", { text: body.answer }));
+  bubble.append(h("div", {}, withBold(body.answer)));
 
   if (body.citations && body.citations.length) {
     bubble.append(h("div", { class: "sources" },
