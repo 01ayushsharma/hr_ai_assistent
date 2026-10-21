@@ -84,6 +84,22 @@ class Outcome:
     kind: str = "llm"  # llm | access_denied | proposal | write_rejected | executed | error
 
 
+_REF = r"C\d{1,3}"
+_REF_LIST = rf"{_REF}(?:\s*(?:,|and|&)\s*{_REF})*"
+_REF_PATTERNS = [
+    re.compile(rf"\s*\(\s*(?:(?:references?|refs?|sources?|citations?|see)\s*:?\s*)?{_REF_LIST}\s*\)", re.I),
+    re.compile(rf"\s*\[\s*(?:(?:references?|refs?|sources?|citations?|see)\s*:?\s*)?{_REF_LIST}\s*\]", re.I),
+    re.compile(rf"\s*(?:references?|refs?|sources?|citations?)\s*:\s*{_REF_LIST}\.?", re.I),
+]
+
+
+def strip_chunk_refs(text: str) -> str:
+    """Remove internal chunk labels (C1, C2, ...) that a model sometimes copies into the answer."""
+    for pattern in _REF_PATTERNS:
+        text = pattern.sub("", text)
+    return re.sub(r"[ \t]+\n", "\n", text).strip()
+
+
 def _record_args(name: str, args: dict) -> dict:
     return {k: str(args[k]).strip() for k in CONTRACT_TOOLS[name] if args.get(k) not in (None, "")}
 
@@ -362,8 +378,10 @@ class ChatService:
             route, citations = "tool", []
         elif route in ("clarify", "no_answer", "refuse"):
             tool_calls, citations = [], []
-            if route == "no_answer" and outcome.kind != "error" and "HR" not in answer:
-                answer = (answer + " Please contact the HR team for help.").strip()
+            if route == "no_answer" and outcome.kind != "error":
+                # Fixed wording: a free-form "not in the documents I can access" would hint
+                # that restricted documents exist, and a fixed text is identical on every run.
+                answer = NO_ANSWER_TEXT
         elif citations and tool_calls:
             route = "hybrid"
         elif citations:
@@ -374,6 +392,8 @@ class ChatService:
             # The model claimed a grounded answer but nothing backs it: do not guess.
             route, answer = "no_answer", NO_ANSWER_TEXT
 
+        if outcome.kind == "llm":
+            answer = strip_chunk_refs(answer)
         with repo.session(ctx.db_path) as conn:
             scrubber = AnswerScrubber(conn, ctx.requester)
             answer = scrubber.scrub(answer or REFUSE_TEXT)

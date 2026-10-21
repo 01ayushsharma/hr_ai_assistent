@@ -240,6 +240,20 @@ class TestRoutes:
         body = chat(client, "E2004", "Write me a Python script").json()
         assert body["route"] == "refuse" and body["citations"] == [] and body["tool_calls"] == []
 
+    def test_no_answer_uses_fixed_wording(self, client, fake_llm):
+        # Seen live: "The HR documents I can access do not include ..." hints that restricted ones exist.
+        fake_llm.queue(tool_call("search_policies", query="salary band"),
+                       final("no_answer", "The HR documents I can access do not include salary bands."))
+        body = chat(client, "E2004", "What is the salary band for L5?").json()
+        assert body["route"] == "no_answer"
+        assert body["answer"] == "The HR documents don't cover this question. Please contact the HR team for help."
+
+    def test_chunk_refs_are_removed_from_answers(self, client, fake_llm):
+        fake_llm.queue(tool_call("search_policies", query="leave"),
+                       final("rag", "Leave is recorded in whole days [C2].\n\n(References: C3, C4, C1)", ["C1"]))
+        body = chat(client, "E2004", "Tell me about leave").json()
+        assert body["answer"] == "Leave is recorded in whole days."
+
     def test_llm_refusal_stop_reason(self, client, fake_llm):
         from app.orchestration.llm import LLMResponse
 
