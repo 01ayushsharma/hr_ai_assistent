@@ -5,6 +5,7 @@ pydantic==2.14.1
 
 # LLM
 anthropic==1.15.0
+openai==3.35.1
 tiktoken==0.14.0
 
 # Ingestion

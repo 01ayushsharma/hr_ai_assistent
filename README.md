@@ -7,7 +7,7 @@ It is a **single-agent** design. One LLM runs a bounded tool loop, and code enfo
 ## Quick start
 
 ```bash
-cp .env.example .env          # then set ANTHROPIC_API_KEY
+cp .env.example .env          # then set LLM_PROVIDER and its API key (see Configuration)
 # put the data in ./data:  data/corpus/  data/manifest.json  data/veltrix.db
 docker compose up --build
 curl localhost:8000/health    # 503 while ingesting, then {"status": "ok"} (about 15-40 s)
@@ -43,7 +43,15 @@ The first local run downloads the embedding model (about 65 MB) into `./.cache/m
 
 ## Configuration
 
-Every variable is listed in [.env.example](.env.example). The required ones are `CORPUS_DIR`, `MANIFEST_PATH`, `DB_PATH`, `APP_TODAY` (empty means the system date), `LLM_PROVIDER` (`anthropic`) and `ANTHROPIC_API_KEY`. Optional: `ANTHROPIC_MODEL` (default `claude-opus-5-5`), `LLM_EFFORT` (default `low`), `LLM_FALLBACKS`, `LOG_LEVEL` and `LOG_FILE`.
+Every variable is listed in [.env.example](.env.example). The required ones are `CORPUS_DIR`, `MANIFEST_PATH`, `DB_PATH`, `APP_TODAY` (empty means the system date), `LLM_PROVIDER` and the API key of the selected provider:
+
+| `LLM_PROVIDER` | Key | Model variable (default) |
+|---|---|---|
+| `anthropic` (default) | `ANTHROPIC_API_KEY` | `ANTHROPIC_MODEL` (`claude-opus-5-5`) |
+| `openai` | `OPENAI_API_KEY` | `OPENAI_MODEL` (`gpt-4.1`); optional `OPENAI_BASE_URL` |
+| `groq` | `GROQ_API_KEY` | `GROQ_MODEL` (`openai/gpt-oss-120b`) |
+
+Optional: `LLM_EFFORT` (Anthropic only, default `low`), `LLM_FALLBACKS` (Anthropic only), `LOG_LEVEL` and `LOG_FILE`. The OpenAI and Groq providers share one implementation ([app/orchestration/llm.py](app/orchestration/llm.py), `OpenAICompatibleProvider`) that translates the agent's requests to Chat Completions and runs at temperature 0. OpenAI gets the final answer as a strict JSON schema; Groq does not accept a schema together with tools, so there the system prompt asks for the JSON object and the agent extracts it.
 
 ## Architecture
 
@@ -91,7 +99,7 @@ flowchart TB
 
 ## Tests
 
-`make test` runs 135 tests (about 90 s, most of it the one-time ingestion). The integration tests use a scripted fake LLM, so they are deterministic and need no key. One more test runs the real Anthropic SDK against a local mock of the Messages API to check request shape and tool-call replay.
+`make test` runs 139 tests (about 90 s, most of it the one-time ingestion). The integration tests use a scripted fake LLM, so they are deterministic and need no key. Two more test files run the real Anthropic and OpenAI SDKs against local mocks of the Messages and Chat Completions APIs to check request shape and tool-call replay.
 
 The tests read a fixed copy of the assessment data in `tests/fixtures/data/`, never `./data`, so replacing `./data` with another corpus does not break `make test`. Set `TEST_DATA_DIR` to run them against another folder.
 
@@ -142,6 +150,7 @@ These are in [scripts/smoke_test.py](scripts/smoke_test.py), with the expected b
 ## Known limitations
 
 - **Not verified live.** No LLM key was available where this was built, and Docker Desktop was blocked by an organisation sign-in policy. The real SDK path was tested against a mocked API, and the Docker image is verified by the CI job once the repository is pushed, not locally. Run `scripts/smoke_test.py` against a live key before relying on answer quality.
+- **Groq is for development, not grading.** With `LLM_PROVIDER=groq` (`openai/gpt-oss-120b`) the free tier allows 8,000 tokens per minute, which is about one document question per minute; beyond that, chat returns the "trouble reaching the language model" message. gpt-oss sometimes sends its final JSON as a call to a non-existent `json` tool or sends `null` for optional tool arguments; the provider handles both (`_salvage_final_answer`, `_nullable_optionals` in [app/orchestration/llm.py](app/orchestration/llm.py)).
 - **The LLM decides what counts as "the same rule".** Code computes the precedence order and labels each chunk, and the LLM applies that order to the statements it judges equivalent. A misjudgement could surface a superseded value. Mitigations: authority-first ordering in every search result and explicit tie markers.
 - **OCR spacing repair** is a heuristic (a dictionary-based word splitter plus corpus vocabulary). It fixed this memo, but a different scan may produce small errors (for example "atleast").
 - **Retrieval recall is not guaranteed.** Each search returns at most about 1,800 tokens. A question that needs many documents may be answered partly, with the uncovered part stated.

@@ -22,6 +22,9 @@ class Settings:
     app_today: date | None
     llm_provider: str
     anthropic_model: str
+    openai_model: str
+    openai_base_url: str | None
+    groq_model: str
     llm_effort: str
     llm_fallbacks: str
     llm_timeout_s: float
@@ -46,6 +49,9 @@ def load_settings() -> Settings:
         app_today=date.fromisoformat(app_today) if app_today else None,
         llm_provider=_env("LLM_PROVIDER", "anthropic").lower(),
         anthropic_model=_env("ANTHROPIC_MODEL", "claude-opus-5-5"),
+        openai_model=_env("OPENAI_MODEL", "gpt-4.1"),
+        openai_base_url=_env("OPENAI_BASE_URL"),
+        groq_model=_env("GROQ_MODEL", "openai/gpt-oss-120b"),
         llm_effort=_env("LLM_EFFORT", "low"),
         llm_fallbacks=_env("LLM_FALLBACKS", "default"),
         llm_timeout_s=float(_env("LLM_TIMEOUT_S", "20")),
