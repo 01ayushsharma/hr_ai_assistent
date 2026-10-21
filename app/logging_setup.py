@@ -13,7 +13,14 @@ import sys
 from datetime import datetime, timezone
 
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-_PHONE_RE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
+# Phone-number shapes only, so ISO dates, timestamps and request IDs pass through intact.
+_PHONE_RE = re.compile(
+    r"(?<![\w.:-])(?:"
+    r"\+\d{1,3}[\s.-]?\(?\d{1,4}\)?(?:[\s.-]?\d{2,5}){2,4}"  # +91 98765 43210, +49 39 5559 9689
+    r"|\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}"                    # 512-555-0199, (512) 555 0199
+    r"|\d{5}\s\d{5}"                                          # 98765 43210
+    r")(?![\w:-])"
+)
 
 
 def scrub(text: str) -> str:
